@@ -1,6 +1,5 @@
 import base64
-
-from src.lambda_handler import lambda_handler
+from src.lambda_function import lambda_handler
 
 event = {
   "Records": [

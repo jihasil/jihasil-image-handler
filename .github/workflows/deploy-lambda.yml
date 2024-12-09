@@ -41,7 +41,8 @@ jobs:
 
       - name: make lambda
         run: |
-          zip lambda.zip -r lambda
+          cd lambda
+          zip -r ../lambda.zip .
 
       - name: deploy lambda
         run: |

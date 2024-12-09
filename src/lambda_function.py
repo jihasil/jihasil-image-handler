@@ -1,7 +1,7 @@
 import boto3
 from botocore.exceptions import ClientError
 import base64
-from src.image_resizer import resize_image
+from image_resizer import resize_image
 
 
 def lambda_handler(event, context):
