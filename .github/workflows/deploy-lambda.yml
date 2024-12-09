@@ -1,0 +1,97 @@
+name: deploy-py-lambda
+on:
+  workflow_dispatch:
+
+env:
+  lambda_name: jihasil-image-handler
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            src/*
+
+      - name: upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          path: src
+          name: lambda
+
+  deploy-lambda:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS Credentials@v4
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          audience: 'sts.amazonaws.com'
+          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ secrets.ROLE_TO_ASSUME }}
+
+      - name: download artifact
+        uses: actions/download-artifact@v4
+
+      - name: make lambda
+        run: |
+          zip lambda.zip -r lambda/src
+
+      - name: deploy lambda
+        run: |
+          aws lambda update-function-code --function-name ${{ env.lambda_name }} --zip-file fileb://lambda.zip
+
+  deploy-layer:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS Credentials@v4
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          audience: 'sts.amazonaws.com'
+          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ secrets.ROLE_TO_ASSUME }}
+
+      - name: download artifact
+        uses: actions/download-artifact@v4
+
+      - name: make layer
+        run: |
+          pip install -r lambda/src/requirements.txt --target=python 
+          zip ${{ env.lambda_name }}-layer.zip -r python 
+
+      - name: deploy layer
+        run: |
+          aws lambda publish-layer-version \
+          --layer-name ${{ env.lambda_name }} \
+          --zip-file fileb://${{ env.lambda_name }}-layer.zip \
+          --compatible-runtimes python3.12 \
+          --region ${{ vars.AWS_REGION }}
+
+  apply-layer:
+    needs: [ deploy-lambda, deploy-layer ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS Credentials@v4
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          audience: 'sts.amazonaws.com'
+          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ secrets.ROLE_TO_ASSUME }}
+
+      - name: Get the latest layer version
+        id: get_layer_version
+        run: |
+          LAYER_NAME=${{ env.lambda_name }}
+          LAYER_ARN=$(aws lambda list-layer-versions --layer-name $LAYER_NAME --query "LayerVersions[0].LayerVersionArn" --output text)
+          echo "Layer ARN: $LAYER_ARN"
+          echo "layer_arn=$LAYER_ARN" >> $GITHUB_ENV
+
+      - name: Update Lambda function with the latest layer
+        run: |
+          FUNCTION_NAME=${{ env.lambda_name }}
+          aws lambda update-function-configuration \
+            --function-name $FUNCTION_NAME \
+            --layers ${{ env.layer_arn }}
