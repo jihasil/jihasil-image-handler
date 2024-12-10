@@ -1,23 +1,28 @@
 import boto3
 from botocore.exceptions import ClientError
 import base64
-from image_resizer import resize_image
+from src.image_resizer import resize_image
 
 
 def lambda_handler(event, context):
-    # Parse CloudFront request
-    request = event['Records'][0]['cf']['request']
-    uri = request['uri']
-    querystring = request.get('querystring', '')
+    # Parse Lambda Function URL request
+    raw_path = event.get('rawPath', '').rstrip('/')
+    raw_query_string = event.get('rawQueryString', '')
 
     # Extract the bucket name and file path
-    bucket_name, image_path = uri.lstrip('/').split('/', 1)
+    try:
+        bucket_name, image_path = raw_path.lstrip('/').split('/', 1)
+    except ValueError:
+        return {
+            'statusCode': 400,
+            'body': 'Invalid request path. Expected format: /<bucket_name>/<file_path>',
+        }
 
     # Extract width parameter from query string
     width = None
-    if querystring:
-        params = {k: v for k, v in (pair.split('=') for pair in querystring.split('&'))}
-        width = int(params.get('width', 0))
+    if raw_query_string:
+        params = {k: v for k, v in (pair.split('=') for pair in raw_query_string.split('&'))}
+        width = int(params.get('width', 0)) if 'width' in params else None
 
     # S3 client
     s3 = boto3.client('s3')
@@ -31,39 +36,33 @@ def lambda_handler(event, context):
             # Return the original image if width is not specified
             encoded_image = base64.b64encode(image_data).decode('utf-8')
             return {
-                'status': '200',
-                'statusDescription': 'OK',
+                'statusCode': 200,
                 'body': encoded_image,
+                'isBase64Encoded': True,
                 'headers': {
-                    'content-type': [{'key': 'Content-Type', 'value': s3_object['ContentType']}]
-                },
-                'bodyEncoding': 'base64',
+                    'Content-Type': s3_object['ContentType']
+                }
             }
 
+        # Resize the image
         buffer = resize_image(image_data, width)
-
-        # Cache the resized image in S3 (optional step)
-        resized_key = f"resized/{image_path}?width={width}"
-        s3.put_object(Bucket=bucket_name, Key=resized_key, Body=buffer, ContentType=s3_object['ContentType'])
 
         # Return the resized image as the response
         encoded_image = base64.b64encode(buffer.getvalue()).decode('utf-8')
         return {
-            'status': '200',
-            'statusDescription': 'OK',
+            'statusCode': 200,
             'body': encoded_image,
+            'isBase64Encoded': True,
             'headers': {
-                'content-type': [{'key': 'Content-Type', 'value': s3_object['ContentType']}]
-            },
-            'bodyEncoding': 'base64',
+                'Content-Type': s3_object['ContentType']
+            }
         }
 
     except ClientError as e:
         if e.response['Error']['Code'] == "NoSuchKey":
             return {
-                'status': '404',
-                'statusDescription': 'Not Found',
-                'body': 'The requested image does not exist.',
+                'statusCode': 404,
+                'body': 'The requested image does not exist.'
             }
         else:
             raise e
