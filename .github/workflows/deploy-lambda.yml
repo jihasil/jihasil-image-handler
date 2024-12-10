@@ -1,6 +1,13 @@
 name: deploy-py-lambda
 on:
   workflow_dispatch:
+    inputs:
+      python-version:
+        description: choose python version you'd like to use
+        type: choice
+        default: '3.12'
+        options:
+          - '3.12'
 
 permissions:
   id-token: write
@@ -8,6 +15,8 @@ permissions:
 
 env:
   lambda_name: jihasil-image-handler
+  artifact_name: src
+  python: python${{ inputs.python-version }}
 
 jobs:
   build:
@@ -23,7 +32,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           path: src
-          name: lambda
+          name: ${{ env.artifact_name }}
 
   deploy-lambda:
     needs: build
@@ -41,12 +50,11 @@ jobs:
 
       - name: make lambda
         run: |
-          cd lambda
-          zip -r ../lambda.zip .
+          zip -r ${{ env.lambda_name }}.zip ${{ env.artifact_name }}
 
       - name: deploy lambda
         run: |
-          aws lambda update-function-code --function-name ${{ env.lambda_name }} --zip-file fileb://lambda.zip
+          aws lambda update-function-code --function-name ${{ env.lambda_name }} --zip-file fileb://${{ env.lambda_name }}.zip
 
   deploy-layer:
     needs: build
@@ -62,7 +70,7 @@ jobs:
       - name: Set up python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ inputs.python-version }}
           cache: 'pip'
 
       - name: download artifact
@@ -70,7 +78,7 @@ jobs:
 
       - name: make layer
         run: |
-          pip install -r lambda/requirements.txt --target=python 
+          pip install -r ${{ env.artifact_name }}/requirements.txt --target=python 
           zip ${{ env.lambda_name }}-layer.zip -r python 
 
       - name: deploy layer
@@ -78,7 +86,7 @@ jobs:
           aws lambda publish-layer-version \
           --layer-name ${{ env.lambda_name }} \
           --zip-file fileb://${{ env.lambda_name }}-layer.zip \
-          --compatible-runtimes python3.12 \
+          --compatible-runtimes ${{ env.python }} \
           --region ${{ vars.AWS_REGION }}
 
   apply-layer:
