@@ -2,6 +2,7 @@ import boto3
 from botocore.exceptions import ClientError
 import base64
 from src.image_resizer import resize_image
+from urllib.parse import unquote
 
 
 def lambda_handler(event, context):
@@ -12,6 +13,9 @@ def lambda_handler(event, context):
     # Extract the bucket name and file path
     try:
         bucket_name, image_path = raw_path.lstrip('/').split('/', 1)
+        # decode url
+        image_path = unquote(image_path)
+        print(image_path)
     except ValueError:
         return {
             'statusCode': 400,
