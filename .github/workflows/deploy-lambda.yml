@@ -8,6 +8,13 @@ on:
         default: '3.12'
         options:
           - '3.12'
+      deploy-env:
+        description: choose target deploy environment
+        type: choice
+        default: stage
+        options:
+          - 'stage'
+          - 'prod'
 
 permissions:
   id-token: write
@@ -21,6 +28,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.deploy-env }}
 
     steps:
       - uses: actions/checkout@v4
@@ -37,6 +45,7 @@ jobs:
   deploy-lambda:
     needs: build
     runs-on: ubuntu-latest
+    environment: ${{ inputs.deploy-env }}
     steps:
       - name: Configure AWS Credentials@v4
         uses: aws-actions/configure-aws-credentials@v3
@@ -59,6 +68,7 @@ jobs:
   deploy-layer:
     needs: build
     runs-on: ubuntu-latest
+    environment: ${{ inputs.deploy-env }}
     steps:
       - name: Configure AWS Credentials@v4
         uses: aws-actions/configure-aws-credentials@v3
@@ -90,6 +100,7 @@ jobs:
 
   apply-layer:
     needs: [ deploy-lambda, deploy-layer ]
+    environment: ${{ inputs.deploy-env }}
     runs-on: ubuntu-latest
     steps:
       - name: Configure AWS Credentials@v4
