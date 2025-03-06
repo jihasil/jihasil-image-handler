@@ -4,8 +4,8 @@ from src.lambda_function import lambda_handler
 event = {
   "version": "2.0",
   "routeKey": "$default",
-  "rawPath": "/jihasil-stage/post-media/스크린샷 2025-01-22 15-32-38.png",
-  "rawQueryString": "width=300",
+  "rawPath": "/jihasil-prod/post-media/6KrDVd_8jgNuFKpHPQWjY/20250110_184247.jpg",
+  # "rawQueryString": "width=640",
   "headers": {
     "accept": "*/*",
     "accept-encoding": "gzip, deflate, br",
@@ -17,9 +17,9 @@ event = {
     "x-forwarded-port": "443",
     "x-forwarded-proto": "https"
   },
-  "queryStringParameters": {
-    "width": "300"
-  },
+  # "queryStringParameters": {
+  #   "width": "640"
+  # },
   "requestContext": {
     "accountId": "anonymous",
     "apiId": "abcdefghij",
@@ -41,11 +41,16 @@ event = {
   "isBase64Encoded": False
 }
 
+import time
+
+tik = time.time()
 response = lambda_handler(event, None)
+tok = time.time()
 
 print(response.get('statusCode'))
+print("elapsed %f" % (tok - tik))
 
-test_file_path = "lambda_test_003-width300.png"
+test_file_path = "test_no_resize.webp"
 body_data = base64.b64decode(response.get("body"))
 
 with open(test_file_path, "wb") as image_file:
