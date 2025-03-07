@@ -3,7 +3,6 @@ from botocore.exceptions import ClientError
 import base64
 from src.image_resizer import resize_image
 from urllib.parse import unquote
-import asyncio
 
 
 # S3 client
