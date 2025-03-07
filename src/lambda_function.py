@@ -3,18 +3,39 @@ from botocore.exceptions import ClientError
 import base64
 from src.image_resizer import resize_image
 from urllib.parse import unquote
+import asyncio
 
 
-def lambda_handler(event, context):
+# S3 client
+s3 = boto3.client('s3')
+
+def parse_request(event):
     # Parse Lambda Function URL request
     raw_path = event.get('rawPath', '').rstrip('/')
 
     # Extract the bucket name and file path
+    bucket_name, image_key = raw_path.lstrip('/').split('/', 1)
+    # decode url
+    image_key = unquote(image_key)
+    print(image_key)
+
+    return bucket_name, image_key
+
+
+def get_cached_image_key(image_path, width):
+    file_name = image_path.rsplit('.', 1)[0]
+
+    if width > 0:
+        file_suffix = f"_{width}"
+    else:
+        file_suffix = ""
+
+    return f"{file_name}{file_suffix}.webp"
+
+
+def lambda_handler(event, context):
     try:
-        bucket_name, image_path = raw_path.lstrip('/').split('/', 1)
-        # decode url
-        image_path = unquote(image_path)
-        print(image_path)
+        bucket_name, image_key = parse_request(event)
     except ValueError:
         return {
             'statusCode': 400,
@@ -24,33 +45,52 @@ def lambda_handler(event, context):
     # Extract width parameter from query string
     width = int(event.get("queryStringParameters", {"width": 0}).get("width"))
 
-    # S3 client
-    s3 = boto3.client('s3')
+    cached_image_key = get_cached_image_key(image_key, width)
 
     try:
-        # Fetch image from S3
-        s3_object = s3.get_object(Bucket=bucket_name, Key=image_path)
-        image_data = s3_object['Body'].read()
-
-        # Resize the image
-        buffer = resize_image(image_data, width)
+        cached_s3_object = s3.get_object(Bucket=bucket_name, Key=cached_image_key)
+        print(f"{cached_image_key} cache hit")
+        cached_image_data = cached_s3_object['Body'].read()
 
         # Return the resized image as the response
-        encoded_image = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        encoded_image = base64.b64encode(cached_image_data).decode('utf-8')
+
         return {
             'statusCode': 200,
             'body': encoded_image,
             'isBase64Encoded': True,
             'headers': {
-                'Content-Type': s3_object['ContentType']
+                'Content-Type': cached_s3_object['ContentType']
             }
         }
-
     except ClientError as e:
-        if e.response['Error']['Code'] == "NoSuchKey":
+        print(f"{cached_image_key} cache miss")
+        try:
+            # Fetch image from S3
+            s3_object = s3.get_object(Bucket=bucket_name, Key=image_key)
+            image_data = s3_object['Body'].read()
+
+            # Resize the image
+            buffer = resize_image(image_data, width)
+
+            # Return the resized image as the response
+            encoded_image = base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+            s3.put_object(Bucket=bucket_name, Key=cached_image_key, Body=buffer, ContentType="image/webp")
+
             return {
-                'statusCode': 404,
-                'body': 'The requested image does not exist.'
+                'statusCode': 200,
+                'body': encoded_image,
+                'isBase64Encoded': True,
+                'headers': {
+                    'Content-Type': "image/webp"
+                }
             }
-        else:
-            raise e
+        except ClientError as e:
+            if e.response['Error']['Code'] == "NoSuchKey":
+                return {
+                    'statusCode': 404,
+                    'body': 'The requested image does not exist.'
+                }
+            else:
+                raise e

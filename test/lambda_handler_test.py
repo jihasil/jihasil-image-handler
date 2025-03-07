@@ -5,7 +5,7 @@ event = {
   "version": "2.0",
   "routeKey": "$default",
   "rawPath": "/jihasil-prod/post-media/6KrDVd_8jgNuFKpHPQWjY/20250110_184247.jpg",
-  # "rawQueryString": "width=640",
+  "rawQueryString": "width=640",
   "headers": {
     "accept": "*/*",
     "accept-encoding": "gzip, deflate, br",
@@ -17,9 +17,9 @@ event = {
     "x-forwarded-port": "443",
     "x-forwarded-proto": "https"
   },
-  # "queryStringParameters": {
-  #   "width": "640"
-  # },
+  "queryStringParameters": {
+    "width": "700"
+  },
   "requestContext": {
     "accountId": "anonymous",
     "apiId": "abcdefghij",
