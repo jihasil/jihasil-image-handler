@@ -64,11 +64,18 @@ def lambda_handler(event, context):
         }
     except ClientError as e:
         print(f"{cached_image_key} cache miss")
+
         try:
             # Fetch image from S3
             s3_object = s3.get_object(Bucket=bucket_name, Key=image_key)
             image_data = s3_object['Body'].read()
+        except ClientError as e:
+            return {
+                'statusCode': 404,
+                'body': 'The requested image does not exist.'
+            }
 
+        try:
             # Resize the image
             buffer = resize_image(image_data, width)
 
@@ -85,11 +92,13 @@ def lambda_handler(event, context):
                     'Content-Type': "image/webp"
                 }
             }
-        except ClientError as e:
-            if e.response['Error']['Code'] == "NoSuchKey":
-                return {
-                    'statusCode': 404,
-                    'body': 'The requested image does not exist.'
-                }
-            else:
-                raise e
+        except Exception as e:
+            print(str(e))
+
+            encoded_image = base64.b64encode(image_data).decode('utf-8')
+
+            return {
+                "statusCode": 200,
+                "body": encoded_image,
+                'isBase64Encoded': True,
+            }

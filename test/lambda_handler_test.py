@@ -4,7 +4,7 @@ from src.lambda_function import lambda_handler
 event = {
   "version": "2.0",
   "routeKey": "$default",
-  "rawPath": "/jihasil-prod/post-media/6KrDVd_8jgNuFKpHPQWjY/20250110_184247.jpg",
+  "rawPath": "/jihasil-stage/post-media/Ts_WFvbvdj2YwMWs7uSrm/스크린캐스트%202024-12-09%2000-00-38.webm",
   "rawQueryString": "width=640",
   "headers": {
     "accept": "*/*",
